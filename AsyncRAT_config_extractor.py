@@ -164,8 +164,8 @@ class AsyncRAT(Extractor):
                 else:
                     cfg.http.append(
                         ExtractorModel.Http(
-                            hostname=flat_config.pop("Hosts"),
-                            port=flat_config.pop("Ports"),
+                            hostname=c2s_config,
+                            port=ports,
                             usage=ConnUsageEnum.c2,
                             protocol="http",
                         )
