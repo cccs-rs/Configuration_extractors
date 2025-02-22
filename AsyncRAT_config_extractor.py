@@ -7,7 +7,7 @@ from sys import argv
 from tempfile import NamedTemporaryFile
 from typing import BinaryIO, List, Optional
 
-from backports.pbkdf2 import pbkdf2_hmac
+from hashlib import pbkdf2_hmac
 from Crypto.Cipher import AES
 from dotnetfile import DotNetPE
 from maco.extractor import Extractor
