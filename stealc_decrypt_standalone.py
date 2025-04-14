@@ -6,6 +6,14 @@ import argparse
 import string
 import json
 
+
+from typing import BinaryIO, List, Optional
+from maco.extractor import Extractor
+from maco.model import ConnUsageEnum, ExtractorModel, CategoryEnum
+from maco import model
+from validators import url, ipv4, domain
+from urllib.parse import urlparse
+
 def rc4_ksa(key):
     S = list(range(256))
     j = 0
@@ -203,7 +211,7 @@ def find_c2(decrypted_strings):
                 break
     
     if ip_address and path:
-        return f"{ip_address}{path}"
+        return f"https://{ip_address}{path}"
     elif ip_address:
         return ip_address
     else:
@@ -263,5 +271,135 @@ def main():
     
     print(json.dumps(output_data, indent=4))
 
+class Stealc(Extractor):
+    family = "Stealc"
+    author = "@RussianPanda"
+    last_modified = "2025-04-25"
+    sharing: str = "TLP:CLEAR"
+    yara_rule: str = """
+rule win_mal_StealC_v2 {
+    meta:
+        id = "23AhaIHSlcGvXYhsbeFLQ2"
+        fingerprint = "1715ef4e1914a50d8f4a0644ddfd7f9bb2b6f0ec0dfc77615dce4dd5fc943166"
+        version = "1.0"
+        modified = "2025-04-14"
+        status = "RELEASED"
+        sharing = "TLP:WHITE"
+        source = "RUSSIANPANDA"
+        author = "RussianPanda"
+        description = "Detects StealC v2"
+        category = "MALWARE"
+        malware = "STEALC"
+        malware_type = "INFOSTEALER"
+        report = "HTTPS://TRAC-LABS.COM/AUTOPSY-OF-A-FAILED-STEALER-STEALC-V2-A4E32DA04396"
+        hash = "bc7e489815352f360b6f0c0064e1d305db9150976c4861b19b614be0a5115f97"
+        original_date = "4/10/2025"
+
+    strings:
+        $s1 = {48 8d ?? ?? ?? ??  00 48 8d}
+        $s2 = {0F B7 C8 81 E9 19 04 00 00 74 14 83 E9 09 74 0F 83 E9 01 74 0A 83 E9 1C 74 05 83 F9 04 75 08}
+    condition:
+        uint16(0) == 0x5A4D and #s1 > 500 and all of them and filesize < 900KB
+}
+"""
+    def run(self, stream: BinaryIO, matches: List = []) -> Optional[ExtractorModel]:
+        # Reset printed_configs per each run to prevent config leaks onto other samples
+        global printed_configs
+        printed_configs = set()
+
+        file_data = stream.read()
+        #sha256_hash = hashlib.sha256(file_data).hexdigest()
+        #self.logger.info(f"SHA-256: {sha256_hash}")
+        config = ExtractorModel(family=self.family)
+        config.category = [
+            CategoryEnum.infostealer
+        ]
+        # minimum length for decrypted strings
+        min_length : int = 4
+
+        detected_info = find_opcode(file_data)
+        
+        rc4_key = detected_info["rc4_key"] if detected_info and detected_info["rc4_key"] else None
+        
+        results = find_and_decrypt_strings(file_data, rc4_key)
+        
+        printable_chars = set(string.printable)
+        
+        unique_decrypted = []
+        seen = set()
+        
+        for result in results:
+            if 'base64_decrypted' in result and result['base64_decrypted']:
+                decrypted = result['base64_decrypted']
+                if (all(c in printable_chars for c in decrypted) and 
+                    is_valid_string(decrypted, min_length) and
+                    decrypted not in seen):
+                    seen.add(decrypted)
+                    unique_decrypted.append(decrypted)
+            
+            elif 'direct_decrypted' in result:
+                decrypted = result['direct_decrypted']
+                if (all(c in printable_chars for c in decrypted) and 
+                    is_valid_string(decrypted, min_length) and
+                    decrypted not in seen):
+                    seen.add(decrypted)
+                    unique_decrypted.append(decrypted)
+        
+        c2_url = find_c2(unique_decrypted)
+        
+        output_data = {
+            "metadata": {
+                "build_id": detected_info["build_id"] if detected_info else None,
+                "rc4_key": rc4_key,
+                "c2": c2_url
+            },
+            "decrypted_strings": unique_decrypted
+        }
+        
+        print(json.dumps(output_data, indent=4))
+
+        config.encryption.append(
+            ExtractorModel.Encryption(
+                algorithm="RC4",
+                public_key=rc4_key,
+                mode="stream",
+                usage=model.ExtractorModel.Encryption.UsageEnum.config
+            )
+        )
+
+        c2_http = ExtractorModel.Http
+        
+        if url(c2_url):
+            parsed_url = urlparse(c2_url)
+            config.http.append(c2_http(
+                protocol = parsed_url.scheme,
+                usage = "c2",
+                uri = c2_url,
+                path = parsed_url.path,
+                query = parsed_url.query,
+                hostname = parsed_url.hostname
+                )
+            )
+        if ipv4(c2_url):
+            connect = ExtractorModel.Http(
+            hostname=c2_url,
+            usage=ConnUsageEnum.c2,
+            )
+            config.http.append(connect)
+        if domain(c2_url):
+            connect = ExtractorModel.Http(
+            hostname=c2_url,
+            usage=ConnUsageEnum.c2,
+            )
+            config.http.append(connect)
+        build_id = output_data['metadata']['build_id'].strip()
+        if build_id is not None:
+            config.campaign_id = [build_id]
+            config.other['build_id'] = build_id
+        if output_data['decrypted_strings']:
+            config.decoded_strings = output_data['decrypted_strings']
+        config.version = "2"
+        return config
+    
 if __name__ == "__main__":
     main()
