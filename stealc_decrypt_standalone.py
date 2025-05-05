@@ -233,10 +233,8 @@ def find_c2(decrypted_strings):
     for s in decrypted_strings:
         if ip_pattern.match(s):
             ip_address = s
-            
-        if validators.domain(s):
-            domain_found = s
-        break
+            print(f"ip_addr found: {ip_address}")
+            break
     
     if ip_address:
         ip_index = decrypted_strings.index(ip_address)
@@ -244,14 +242,14 @@ def find_c2(decrypted_strings):
             if i < len(decrypted_strings) and path_pattern.match(decrypted_strings[i]):
                 path = decrypted_strings[i]
                 break
-    # c2 tends to be before the path
+    # c2 tends to be one before the path
     for s in decrypted_strings:
         if path_pattern.match(s):
             path = s
             path_index = decrypted_strings.index(s)
             if validators.domain(decrypted_strings[path_index - 1]):
                 domain_found = decrypted_strings[path_index - 1]
-            print(f"domain found: {domain_found}")
+                print(f"domain found: {domain_found}")
             break
 
     if ip_address and path:
