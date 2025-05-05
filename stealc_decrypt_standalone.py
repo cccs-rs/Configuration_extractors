@@ -13,6 +13,7 @@ from maco.extractor import Extractor
 from maco.model import ConnUsageEnum, ExtractorModel, CategoryEnum
 from maco import model
 from validators import url, ipv4, domain
+import validators
 from urllib.parse import urlparse
 
 def rc4_ksa(key):
@@ -227,11 +228,15 @@ def find_c2(decrypted_strings):
     
     ip_address = None
     path = None
+    domain_found = None
     
     for s in decrypted_strings:
         if ip_pattern.match(s):
             ip_address = s
-            break
+            
+        if validators.domain(s):
+            domain_found = s
+        break
     
     if ip_address:
         ip_index = decrypted_strings.index(ip_address)
@@ -239,11 +244,24 @@ def find_c2(decrypted_strings):
             if i < len(decrypted_strings) and path_pattern.match(decrypted_strings[i]):
                 path = decrypted_strings[i]
                 break
-    
+    # c2 tends to be before the path
+    for s in decrypted_strings:
+        if path_pattern.match(s):
+            path = s
+            path_index = decrypted_strings.index(s)
+            if validators.domain(decrypted_strings[path_index - 1]):
+                domain_found = decrypted_strings[path_index - 1]
+            print(f"domain found: {domain_found}")
+            break
+
     if ip_address and path:
         return f"https://{ip_address}{path}"
     elif ip_address:
         return ip_address
+    elif domain_found and path:
+        return f"https://{domain_found}{path}"
+    elif domain_found:
+        return domain_found
     else:
         return None
 
@@ -362,7 +380,15 @@ rule win_mal_StealC_v2 {
 
         detected_info = find_opcode(file_data)
         
-        rc4_key = detected_info["rc4_key"] if detected_info and detected_info["rc4_key"] else None
+        rc4_key = None
+        if detected_info and detected_info["rc4_key"]:
+            rc4_key = detected_info["rc4_key"]
+            print(f"[+] Detected RC4 key: {rc4_key}")
+            if detected_info["rc4_traffic"]:
+                print(f"[+] Detected RC4 traffic key: {detected_info['rc4_traffic']}")
+        else:
+            print("[-] No RC4 key detected or provided. Cannot decrypt.")
+            raise RuntimeError("[-] No RC4 key detected. Cannot decrypt.")
         
         results = find_and_decrypt_strings(file_data, rc4_key)
         
@@ -391,13 +417,14 @@ rule win_mal_StealC_v2 {
         c2_url = find_c2(unique_decrypted)
         
         output_data = {
-            "metadata": {
-                "build_id": detected_info["build_id"] if detected_info else None,
-                "rc4_key": rc4_key,
-                "c2": c2_url
-            },
-            "decrypted_strings": unique_decrypted
-        }
+                "metadata": {
+                    "build_id": detected_info["build_id"] if detected_info else None,
+                    "rc4_key": rc4_key,
+                    "rc4_traffic": detected_info["rc4_traffic"] if detected_info else None,
+                    "c2": c2_url
+                },
+                "decrypted_strings": unique_decrypted
+            }
         
         print(json.dumps(output_data, indent=4))
 
