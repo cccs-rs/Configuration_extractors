@@ -168,8 +168,12 @@ rule DcRat_RAT_Windows : RAT NET {
             self.logger.info(f"Group: {Group}")
             self.logger.info(f"Anti_Process: {Anti_Process}")
             self.logger.info(f"Anti: {Anti}")
-
-            cfg.http.append(cfg.Http(hostname=Hosts.decode(), port=Ports.decode(), usage=ConnUsageEnum.c2))
+            if ',,' in Hosts.decode():
+                c2s = [i for i in Hosts.decode().split(',,')]
+                for c2 in c2s:
+                    cfg.http.append(cfg.Http(hostname=c2, port=Ports.decode(), usage=ConnUsageEnum.c2))
+            else:       
+                cfg.http.append(cfg.Http(hostname=Hosts.decode(), port=Ports.decode(), usage=ConnUsageEnum.c2))
             cfg.version = Version.decode()
             cfg.mutex.append(MTX.decode())
             cfg.campaign_id.append(Group.decode())

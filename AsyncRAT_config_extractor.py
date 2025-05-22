@@ -7,7 +7,7 @@ from sys import argv
 from tempfile import NamedTemporaryFile
 from typing import BinaryIO, List, Optional
 
-from backports.pbkdf2 import pbkdf2_hmac
+from hashlib import pbkdf2_hmac
 from Crypto.Cipher import AES
 from dotnetfile import DotNetPE
 from maco.extractor import Extractor
@@ -148,14 +148,28 @@ class AsyncRAT(Extractor):
                 )
 
                 # HTTP connection to C2 server
-                cfg.http.append(
-                    ExtractorModel.Http(
-                        hostname=flat_config.pop("Hosts"),
-                        port=flat_config.pop("Ports"),
-                        usage=ConnUsageEnum.c2,
-                        protocol="http",
+                c2s_config = flat_config.pop("Hosts")
+                ports = flat_config.pop("Ports")
+                if ',' in c2s_config:
+                    c2s = [i for i in c2s_config.split(',')]
+                    for c2 in c2s:
+                        cfg.http.append(
+                            ExtractorModel.Http(
+                                hostname=c2,
+                                port=ports,
+                                usage=ConnUsageEnum.c2,
+                                protocol="http",
+                            )
+                        )
+                else:
+                    cfg.http.append(
+                        ExtractorModel.Http(
+                            hostname=c2s_config,
+                            port=ports,
+                            usage=ConnUsageEnum.c2,
+                            protocol="http",
+                        )
                     )
-                )
 
                 # Mutex
                 cfg.mutex.append(flat_config.pop("MTX"))
