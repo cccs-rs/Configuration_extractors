@@ -250,6 +250,10 @@ def find_c2(decrypted_strings):
             if validators.domain(decrypted_strings[path_index - 1]):
                 domain_found = decrypted_strings[path_index - 1]
                 print(f"domain found: {domain_found}")
+            # check for http/https with domain
+            if validators.url(decrypted_strings[path_index - 1]):
+                domain_found = decrypted_strings[path_index - 1]
+                print(f"url found: {domain_found}")
             break
 
     if ip_address and path:
@@ -260,7 +264,10 @@ def find_c2(decrypted_strings):
     elif ip_address:
         return ip_address
     elif domain_found and path:
-        return f"https://{domain_found}{path}"
+        if url(domain_found):
+            return f"{ip_address}{path}"
+        else:
+            return f"https://{domain_found}{path}"
     elif domain_found:
         return domain_found
 
@@ -337,7 +344,7 @@ def main():
 class Stealc(Extractor):
     family = "Stealc"
     author = "@RussianPanda"
-    last_modified = "2025-04-25"
+    last_modified = "2025-10-06"
     sharing: str = "TLP:CLEAR"
     yara_rule: str = """
 rule win_mal_StealC_v2 {
