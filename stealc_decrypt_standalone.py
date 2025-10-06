@@ -223,7 +223,7 @@ def find_opcode(binary_data):
         return None
 
 def find_c2(decrypted_strings):
-    ip_pattern = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
+    ip_pattern = re.compile(r'^(?:https?://)?\d+\.\d+\.\d+\.\d+$')
     path_pattern = re.compile(r'^/[a-zA-Z0-9._/-]+\.php$')
     
     ip_address = None
@@ -253,13 +253,17 @@ def find_c2(decrypted_strings):
             break
 
     if ip_address and path:
-        return f"https://{ip_address}{path}"
+        if url(ip_address):
+            return f"{ip_address}{path}"
+        else:
+            return f"https://{ip_address}{path}"
     elif ip_address:
         return ip_address
     elif domain_found and path:
         return f"https://{domain_found}{path}"
     elif domain_found:
         return domain_found
+
     else:
         return None
 
