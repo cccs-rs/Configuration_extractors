@@ -264,8 +264,8 @@ def find_c2(decrypted_strings):
     elif ip_address:
         return ip_address
     elif domain_found and path:
-        if url(domain_found):
-            return f"{ip_address}{path}"
+        if url(domain_found) and url(f"{domain_found}{path}"):
+            return f"{domain_found}{path}"
         else:
             return f"https://{domain_found}{path}"
     elif domain_found:
