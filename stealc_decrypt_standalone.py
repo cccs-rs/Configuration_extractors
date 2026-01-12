@@ -344,7 +344,7 @@ def main():
 class Stealc(Extractor):
     family = "Stealc"
     author = "@RussianPanda"
-    last_modified = "2025-10-06"
+    last_modified = "2026-01-12"
     sharing: str = "TLP:CLEAR"
     yara_rule: str = """
 rule win_mal_StealC_v2 {
